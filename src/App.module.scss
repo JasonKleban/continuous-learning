@@ -1,12 +1,8 @@
-.App {
+.app {
   text-align: center;
 }
 
-.App-logo {
-  height: 40vmin;
-}
-
-.App-header {
+.app-header {
   background-color: #282c34;
   min-height: 100vh;
   display: flex;
@@ -17,6 +13,15 @@
   color: white;
 }
 
-.App-link {
+.app-link {
   color: #09d3ac;
+}
+
+.console {
+    text-align: left;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+
+    pre {
+        margin: 0;
+    }
 }
