@@ -3,12 +3,14 @@ import styles from './App.module.scss';
 import { List } from 'immutable';
 
 declare const mobilenet : any;
+declare const tf : any;
 
 const consoleLineBufferSize = 20;
 
 export const App: React.FC = () => {
     const [state, dispatch] = React.useReducer(appReducer, appInitialState);
-    const img = React.useRef<HTMLImageElement>(null);
+    //const img = React.useRef<HTMLImageElement>(null);
+    const videoRef = React.useRef<HTMLVideoElement>(null);
 
     React.useEffect(() => {
         (async () => {
@@ -23,23 +25,40 @@ export const App: React.FC = () => {
 
             dispatch(AppActions.writeLine('Successfully loaded model'));
 
-            // should I be doing this elsewhere?  Not in the action-creator.
-            // Definitely not in the reducer.
-            JSON.stringify(await mobileNetInstance.classify(img.current), null, '  ').split('\n')
-                .map(AppActions.writeLine).forEach(dispatch);
+            const webcam = await tf.data.webcam(videoRef.current, { facingMode: 'environment' });
+
+            while (true) {
+                const img = await webcam.capture();
+                const result = await mobileNetInstance.classify(img);
+
+                dispatch(AppActions.writeLine(`I think I'm looking at a ${result[0].className} (%${(result[0].probability * 100).toFixed(2)})`));
+
+                dispatch(AppActions.setGuess(`${result[0].className} (%${(result[0].probability * 100).toFixed(2)})`));
+
+                // Dispose the tensor to release the memory.
+                img.dispose();
+
+                // Give some breathing room by waiting for the next animation frame to
+                // fire.
+                await tf.nextFrame();
+              }
         })();
     }, []);
 
     return (
         <div className={styles.app}>
             <header className={styles.appHeader}>
-                <img
+                {/* <img
                     ref={img}
                     alt="something"
                     crossOrigin=""
                     src="https://i.imgur.com/JlUvsxa.jpg"
                     width="227"
-                    height="227" />
+                    height="227" /> */}
+                <video ref={videoRef} autoPlay playsInline muted width="224" height="224"></video>
+                <h2>
+                    {state.guess}
+                </h2>
                 <div className={styles.console}>
                     {state.lines.map((l, i) => <pre key={state.discardedLineCount + i}>{l}</pre>)}
                 </div>
@@ -58,24 +77,29 @@ const s = (<T extends string>(actionType : T) => actionType);
 const AppActions = {
     writeLine: (line : string) =>
         ({ type: s('WRITE_LINE'), line }),
+    setGuess: (guess : string) =>
+        ({ type: s('SET_GUESS'), guess }),
     setMobileNetInstance: (mobileNetInstance : any) =>
         ({ type: s('SET_MOBILE_NET_INSTANCE'), mobileNetInstance })
 }
 
 type AppActions =
     | ReturnType<typeof AppActions.writeLine>
+    | ReturnType<typeof AppActions.setGuess>
     | ReturnType<typeof AppActions.setMobileNetInstance>;
 
 interface AppState {
     lines: List<string>
     discardedLineCount: number
     mobileNetInstance: any
+    guess: string
 }
 
 const appInitialState : AppState = {
     lines: List<string>(),
     discardedLineCount: 0,
-    mobileNetInstance: undefined
+    mobileNetInstance: undefined,
+    guess: ""
 }
 
 const appReducer = (state : AppState, action : AppActions) => {
@@ -95,6 +119,11 @@ const appReducer = (state : AppState, action : AppActions) => {
             return ({
                 ...state,
                 mobileNetInstance: action.mobileNetInstance
+            });
+        case 'SET_GUESS':
+            return ({
+                ...state,
+                guess: action.guess
             });
         default:
             return state;
